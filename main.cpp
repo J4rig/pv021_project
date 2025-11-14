@@ -8,8 +8,6 @@
 #include <fstream>
 #include <string>
 
-const double LEARNING_RATE = 0.001;
-
 using namespace std;
 
 double randomizeNormal(double mean, double deviation) {
@@ -129,6 +127,19 @@ public:
 		}
 	}
 
+	void sumRows(const Matrix& m) {
+		assert(rows == 1);
+		assert(columns == m.columns);
+
+		fill(data.begin(), data.end(), 0.0);
+
+		for (int j = 0; j < m.columns; j++) {
+			for (int i = 0; i < m.rows; i++) {
+				data[j] += m.data[i * m.columns + j];
+			}
+		}
+	}
+
 	void print() {
 		for (int i = 0; i < rows * columns; i++) {
 			if (i % columns == 0) {
@@ -138,6 +149,7 @@ public:
 		}
 		std::cout << '\n';
 	}
+
 };
 
 void ReLU(const Matrix& m, Matrix& m_out) {
@@ -205,76 +217,92 @@ class Network {
 public:
 	vector<Layer> layers;
 
-	Network(const int input_cnt, const int hiden_cnt, const int out_cnt, const int batch_size) {
-		layers.emplace_back(hiden_cnt, input_cnt);
-		layers.emplace_back(out_cnt, hiden_cnt);
+	Network(const int input_cnt, const int hidden_cnt, const int out_cnt, const int batch_size) {
+		layers.emplace_back(hidden_cnt, input_cnt);
+		layers.emplace_back(out_cnt, hidden_cnt);
 
 		layers[0].heWeightInit();
 		layers[1].glorotWeightInit();
 
-		hiden_inner_p = Matrix(batch_size, hiden_cnt);
-		hiden_out = Matrix(batch_size, hiden_cnt);
+		hidden_inner_p = Matrix(batch_size, hidden_cnt);
+		hidden_out = Matrix(batch_size, hidden_cnt);
 
-		hiden_derivate_out = Matrix(batch_size, hiden_cnt);
-		hiden_gradients = Matrix(input_cnt, hiden_cnt);
-		hiden_gradient_part = Matrix(batch_size, hiden_cnt);
-		hiden_gradients_bias = Matrix(1, hiden_cnt);
+		hidden_derivate_out = Matrix(batch_size, hidden_cnt);
+		hidden_gradients = Matrix(input_cnt, hidden_cnt);
+		hidden_gradient_part = Matrix(batch_size, hidden_cnt);
+		hidden_gradients_bias = Matrix(1, hidden_cnt);
+
+		hidden_delta_prev = Matrix(input_cnt, hidden_cnt);
+		hidden_delta_bias_prev = Matrix(1, hidden_cnt);
 
 		out_inner_p = Matrix(batch_size, out_cnt);
 		out = Matrix(batch_size, out_cnt);
 
-		out_gradients = Matrix(hiden_cnt, out_cnt);
+		out_gradients = Matrix(hidden_cnt, out_cnt);
 		out_gradient_part = Matrix(batch_size, out_cnt);
 		out_gradients_bias = Matrix(1, out_cnt);
+
+		out_delta_prev = Matrix(hidden_cnt, out_cnt);
+		out_delta_bias_prev = Matrix(1, out_cnt);
+
 	}
 
 	void forwardPropagate(const Matrix &input) {
 		assert(layers.size() == 2);
 
-		hiden_inner_p.multiply(input, layers[0].weights);
-		hiden_inner_p.addRow(layers[0].biases);
-		ReLU(hiden_inner_p,hiden_out);
+		hidden_inner_p.multiply(input, layers[0].weights);
+		hidden_inner_p.addRow(layers[0].biases);
+		ReLU(hidden_inner_p,hidden_out);
 
-		out_inner_p.multiply(hiden_out, layers[1].weights);
+		out_inner_p.multiply(hidden_out, layers[1].weights);
 		out_inner_p.addRow(layers[1].biases);
 		Softmax(out_inner_p, out);
 	}
 
-	void backPropagate(const Matrix& input, const Matrix& desired_out) {
+	void backPropagate(const Matrix& input, const Matrix& desired_out, double LEARNING_RATE, double momentum_influence) {
 		assert(desired_out.columns == out.columns);
 		assert(desired_out.rows == out.rows);
 
 		out_gradient_part.subtract(out,desired_out);
-		out_gradients.multiplyTransposed(hiden_out, out_gradient_part);
+		out_gradients.multiplyTransposed(hidden_out, out_gradient_part);
 
-		hiden_gradient_part.multiplyWithTransposed(out_gradient_part, layers[1].weights);
+		out_gradients_bias.sumRows(out_gradient_part);
 
-		ReLUDerived(hiden_inner_p, hiden_derivate_out);
-		hiden_gradient_part.elementMultiply(hiden_derivate_out);
-		hiden_gradients.multiplyTransposed(input, hiden_gradient_part);		
+		hidden_gradient_part.multiplyWithTransposed(out_gradient_part, layers[1].weights);
 
-		for (int i = 0; i < layers[0].weights.rows * layers[0].weights.columns; i++) {
-			layers[0].weights.data[i] -= hiden_gradients.data[i] * LEARNING_RATE;
-		}
+		ReLUDerived(hidden_inner_p, hidden_derivate_out);
+		hidden_gradient_part.elementMultiply(hidden_derivate_out);
+		hidden_gradients.multiplyTransposed(input, hidden_gradient_part);		
+
+		hidden_gradients_bias.sumRows(hidden_gradient_part);
+
 
 		for (int i = 0; i < layers[1].weights.rows * layers[1].weights.columns; i++) {
-			layers[1].weights.data[i] -= out_gradients.data[i] * LEARNING_RATE;
+			double scaled_delta = out_gradients.data[i];
+			double delta = -LEARNING_RATE * scaled_delta + out_delta_prev.data[i] * momentum_influence;
+			layers[1].weights.data[i] += delta;
+			out_delta_prev.data[i] = delta;
 		}
 
-		for (int j = 0; j < layers[1].biases.columns; j++) {
-			double grad = 0.0;
-			for (int i = 0; i < out_gradient_part.rows; i++)
-				grad += out_gradient_part.data[i * out_gradient_part.columns + j];
-			grad /= out_gradient_part.rows;
-			layers[1].biases.data[j] -= LEARNING_RATE * grad;
+		for (int i = 0; i < layers[1].biases.columns; i++) {
+			double scaled_delta_bias = out_gradients_bias.data[i];
+			double delta = -LEARNING_RATE * scaled_delta_bias + out_delta_bias_prev.data[i] * momentum_influence;
+			layers[1].biases.data[i] += delta;
+			out_delta_bias_prev.data[i] = delta;
 		}
 
-		for (int j = 0; j < layers[0].biases.columns; j++) {
-			double grad = 0.0;
-			for (int i = 0; i < hiden_gradient_part.rows; i++)
-				grad += hiden_gradient_part.data[i * hiden_gradient_part.columns + j];
-			grad /= hiden_gradient_part.rows;
-			layers[0].biases.data[j] -= LEARNING_RATE * grad;
+		for (int i = 0; i < layers[0].weights.rows * layers[0].weights.columns; i++) {
+			double scaled_delta = hidden_gradients.data[i] ;
+			double delta = -LEARNING_RATE * hidden_gradients.data[i] + hidden_delta_prev.data[i] * momentum_influence;
+			layers[0].weights.data[i] += delta;
+			hidden_delta_prev.data[i] = delta;
+		}
+
+		for (int i = 0; i < layers[0].biases.columns; i++) {
+			double scaled_delta_bias = hidden_gradients_bias.data[i];
+			double delta = -LEARNING_RATE * scaled_delta_bias + hidden_delta_bias_prev.data[i] * momentum_influence;
+			layers[0].biases.data[i] += delta;
+			hidden_delta_bias_prev.data[i] = delta;
 		}
 	}
 
@@ -285,7 +313,7 @@ public:
 		for (int i = 0; i < expected_values.rows * expected_values.columns; i++) {
 			result -= expected_values.data[i] * log(out.data[i] + eps);
 		}
-		std::cout << result / expected_values.rows << '\n';
+		std::cout << result / (expected_values.rows * expected_values.columns)<< '\n';
 	}
 
 	void printOut() {
@@ -314,18 +342,25 @@ public:
 	}
 
 private:
-	Matrix hiden_inner_p;
-	Matrix hiden_out;
-	Matrix hiden_derivate_out;
-	Matrix hiden_gradients;
-	Matrix hiden_gradient_part;
-	Matrix hiden_gradients_bias;
+	Matrix hidden_inner_p;
+	Matrix hidden_out;
+	Matrix hidden_derivate_out;
+	Matrix hidden_gradients;
+	
+	Matrix hidden_gradient_part;
+	Matrix hidden_gradients_bias;
+
+	Matrix hidden_delta_prev;
+	Matrix hidden_delta_bias_prev;
 
 	Matrix out_inner_p;
 	Matrix out;
 	Matrix out_gradients;
 	Matrix out_gradient_part;
 	Matrix out_gradients_bias;
+
+	Matrix out_delta_prev;
+	Matrix out_delta_bias_prev;
 };
 
 
@@ -375,13 +410,13 @@ int main() {
 	int train_size = 60000;
 	int test_size = 10000;
 
-	int hiden_layer_size = 50;
+	int hidden_layer_size = 70;
 
-	int batch_size = 20;
-	int batch_start = 0;
+	int batch_size = 10;
+	
 	Matrix batch = Matrix(batch_size, input_size);
 
-	Network network = Network(input_size, hiden_layer_size, output_size, batch_size);
+	Network network = Network(input_size, hidden_layer_size, output_size, batch_size);
 
 	vector<int> batch_results(batch_size); // outputs produced by batch;
 
@@ -414,33 +449,39 @@ int main() {
 
 
 	std::cout << "Training starts\n";
-										//60000
-	for (batch_start = 0; batch_start < train_size; batch_start += batch_size) {
-		desired_outputs.data = { train_labels.data.begin() + output_size * batch_start, train_labels.data.begin() + output_size * (batch_start + batch_size) };
 
+	int batch_start;
+	int correct;
 
-		copy(normalized_train_data.data.begin() + input_size * batch_start,
-			 normalized_train_data.data.begin() + input_size * (batch_start + batch_size),
-			 batch.data.begin());
+	double LEARNING_RATE = 0.008;
 
-		copy(train_labels.data.begin() + output_size * batch_start,
-			 train_labels.data.begin() + output_size * (batch_start + batch_size),
-			 desired_outputs.data.begin());
+	for (int i = 0; i < 5; i++) {
+		correct = 0;
+											//60000
+		for (batch_start = 0; batch_start < train_size; batch_start += batch_size) {
+			copy(normalized_train_data.data.begin() + input_size * batch_start,
+				normalized_train_data.data.begin() + input_size * (batch_start + batch_size),
+				batch.data.begin());
 
+			copy(train_labels.data.begin() + output_size * batch_start,
+				train_labels.data.begin() + output_size * (batch_start + batch_size),
+				desired_outputs.data.begin());
 
-		network.forwardPropagate(batch);
-		network.backPropagate(batch, desired_outputs);
+			network.forwardPropagate(batch);
+
+			correct += network.compareOutput(desired_outputs);
+
+			network.backPropagate(batch, desired_outputs, LEARNING_RATE / (1 + (batch_start) / 10000), 0.4);
+		}
+
+		std::cout << "Training " << i + 1 << " done, correct comparisons : " << correct << "\n";
 	}
-
-	std::cout << "Training done\n";
-
 	std::cout << "Testing starts\n";
 
-	// testing
 	Matrix testing_input = Matrix(batch_size, input_size);
 	Matrix testing_output = Matrix(batch_size, output_size);
 
-	int correct = 0;
+	correct = 0;
 										//10000
 	for (batch_start = 0; batch_start < test_size; batch_start += batch_size) {
 		copy(normalized_test_data.data.begin() + input_size * batch_start,
@@ -453,9 +494,8 @@ int main() {
 
 		network.forwardPropagate(testing_input);
 
-			correct += network.compareOutput(testing_output);
+		correct += network.compareOutput(testing_output);
 	}
-	std::cout << "Testing done, corect: " << correct << "\n";
-	//std::cout << "Batch start " << batch_start << "\n";
+	std::cout << "Testing done, accuracy: " << static_cast<double>(correct)/test_size << "\n";
 	return 0;
 }
