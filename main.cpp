@@ -289,8 +289,8 @@ public:
 		}
 
 		for (int i = 0; i < layers[0].weights.rows * layers[0].weights.columns; i++) {
-			double scaled_delta = hidden_gradients.data[i] ;
-			double delta = -LEARNING_RATE * hidden_gradients.data[i] + hidden_delta_prev.data[i] * momentum_influence;
+			double scaled_delta = hidden_gradients.data[i];
+			double delta = -LEARNING_RATE * scaled_delta + hidden_delta_prev.data[i] * momentum_influence;
 			layers[0].weights.data[i] += delta;
 			hidden_delta_prev.data[i] = delta;
 		}
