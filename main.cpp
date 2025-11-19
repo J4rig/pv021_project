@@ -26,10 +26,7 @@ public:
 	Matrix() : rows(0), columns(0) {}
 
 	Matrix(const int rows, const int columns) : rows(rows), columns(columns) {
-		data.reserve(rows * columns);
-		for (int i = 0; i < rows * columns; i++) {
-			data.emplace_back(0.0);
-		}
+		data.resize(rows * columns, 0.0);
 	}
 
 	void multiply(const Matrix &m1, const Matrix &m2) {
