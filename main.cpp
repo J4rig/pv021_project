@@ -2,7 +2,7 @@
 #include <vector>
 #include <cmath>
 #include <algorithm>
-#include <assert.h>
+#include <cassert>
 #include <random>
 #include <fstream>
 #include <string>
