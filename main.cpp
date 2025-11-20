@@ -1,6 +1,5 @@
 #include <iostream>
 #include <vector>
-#include <functional>
 #include <cmath>
 #include <algorithm>
 #include <assert.h>
