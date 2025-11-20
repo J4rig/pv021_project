@@ -9,7 +9,7 @@
 
 using namespace std;
 
-double randomizeNormal(double mean, double deviation) {
+double randomizeNormal(const double mean, const double deviation) {
 	static std::random_device rd;
 	static std::mt19937 gen(rd());
 	std::normal_distribution<double> dist(mean, deviation);
