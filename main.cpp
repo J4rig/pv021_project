@@ -28,7 +28,7 @@ public:
 		data.resize(rows * columns, 0.0);
 	}
 
-	void multiply(const Matrix &m1, const Matrix &m2) {
+	void multiply(const Matrix& m1, const Matrix& m2) {
 		assert(m1.columns == m2.rows);
 		assert(m1.rows == rows);
 		assert(m2.columns == columns);
@@ -92,7 +92,7 @@ public:
 		}
 	}
 
-	void subtract(const Matrix& m1, const Matrix& m2) {	
+	void subtract(const Matrix& m1, const Matrix& m2) {
 		assert(m1.rows == m2.rows);
 		assert(m1.columns == m2.columns);
 		assert(m1.rows == rows);
@@ -103,7 +103,7 @@ public:
 		}
 	}
 
-	void elementMultiply(const Matrix& m)  {
+	void elementMultiply(const Matrix& m) {
 		assert(rows == m.rows);
 		assert(columns == m.columns);
 
@@ -141,7 +141,7 @@ public:
 			if (i % columns == 0) {
 				std::cout << '\n';
 			}
-			std::cout << data[i]  << ' ';
+			std::cout << data[i] << ' ';
 		}
 		std::cout << '\n';
 	}
@@ -196,13 +196,13 @@ public:
 	};
 
 	void glorotWeightInit() {
-		for (double &weight : weights.data) {
+		for (double& weight : weights.data) {
 			weight = randomizeNormal(0.0, 2.0 / (neurons + inputs));
 		}
 	}
 
 	void heWeightInit() {
-		for (double &weight : weights.data) {
+		for (double& weight : weights.data) {
 			weight = randomizeNormal(0.0, 2.0 / neurons);
 		}
 	}
@@ -243,12 +243,12 @@ public:
 
 	}
 
-	void forwardPropagate(const Matrix &input) {
+	void forwardPropagate(const Matrix& input) {
 		assert(layers.size() == 2);
 
 		hidden_inner_p.multiply(input, layers[0].weights);
 		hidden_inner_p.addRow(layers[0].biases);
-		ReLU(hidden_inner_p,hidden_out);
+		ReLU(hidden_inner_p, hidden_out);
 
 		out_inner_p.multiply(hidden_out, layers[1].weights);
 		out_inner_p.addRow(layers[1].biases);
@@ -259,7 +259,7 @@ public:
 		assert(desired_out.columns == out.columns);
 		assert(desired_out.rows == out.rows);
 
-		out_gradient_part.subtract(out,desired_out);
+		out_gradient_part.subtract(out, desired_out);
 		out_gradients.multiplyTransposed(hidden_out, out_gradient_part);
 
 		out_gradients_bias.sumRows(out_gradient_part);
@@ -268,7 +268,7 @@ public:
 
 		ReLUDerived(hidden_inner_p, hidden_derivate_out);
 		hidden_gradient_part.elementMultiply(hidden_derivate_out);
-		hidden_gradients.multiplyTransposed(input, hidden_gradient_part);		
+		hidden_gradients.multiplyTransposed(input, hidden_gradient_part);
 
 		hidden_gradients_bias.sumRows(hidden_gradient_part);
 
@@ -309,7 +309,7 @@ public:
 		for (int i = 0; i < expected_values.rows * expected_values.columns; i++) {
 			result -= expected_values.data[i] * log(out.data[i] + eps);
 		}
-		std::cout << result / (expected_values.rows * expected_values.columns)<< '\n';
+		std::cout << result / (expected_values.rows * expected_values.columns) << '\n';
 	}
 
 	void printOut() {
@@ -317,7 +317,7 @@ public:
 		std::cout << '\n';
 	}
 
-	int compareOutput(const Matrix &expected_values) {
+	int compareOutput(const Matrix& expected_values) {
 		int c = 0;
 		for (int i = 0; i < out.rows; i++) {
 
@@ -342,7 +342,7 @@ private:
 	Matrix hidden_out;
 	Matrix hidden_derivate_out;
 	Matrix hidden_gradients;
-	
+
 	Matrix hidden_gradient_part;
 	Matrix hidden_gradients_bias;
 
@@ -360,7 +360,7 @@ private:
 };
 
 
-void normalizeData(const string file_name, Matrix &m) {
+void normalizeData(const string file_name, Matrix& m) {
 	std::cout << "Normalization starts\n";
 
 	ifstream training_vectors_file(file_name);
@@ -386,7 +386,7 @@ void normalizeData(const string file_name, Matrix &m) {
 	std::cout << "Normalized " << c << " inputs from " << file_name << "\n";
 }
 
-void loadLabels(const string file_name, const vector<vector<double>> &outputs, Matrix &labels ) {
+void loadLabels(const string file_name, const vector<vector<double>>& outputs, Matrix& labels) {
 	std::cout << "Loading labels\n";
 	int c = 0;
 
@@ -400,16 +400,30 @@ void loadLabels(const string file_name, const vector<vector<double>> &outputs, M
 	std::cout << "Loaded " << c << " labels\n";
 }
 
+void shuffleData(const Matrix& data, const Matrix& labels, Matrix& shuffled_data, Matrix& shuffled_labels, vector<int>& indices) {
+	random_shuffle(indices.begin(), indices.end());
+
+	for (int i = 0; i < data.rows; i++) {
+		copy(data.data.begin() + indices[i] * data.columns,
+			data.data.begin() + (indices[i] + 1) * data.columns,
+			shuffled_data.data.begin() + i * data.columns);
+
+		copy(labels.data.begin() + indices[i] * labels.columns,
+			labels.data.begin() + (indices[i] + 1) * labels.columns,
+			shuffled_labels.data.begin() + i * labels.columns);
+	}
+}
+
 int main() {
 	int input_size = 784;
 	int output_size = 10;
 	int train_size = 60000;
 	int test_size = 10000;
 
-	int hidden_layer_size = 70;
+	int hidden_layer_size = 120;
 
 	int batch_size = 10;
-	
+
 	Matrix batch = Matrix(batch_size, input_size);
 
 	Network network = Network(input_size, hidden_layer_size, output_size, batch_size);
@@ -418,7 +432,7 @@ int main() {
 
 	Matrix desired_outputs(batch_size, output_size);
 
-	vector<vector<double>> outputs {{ 1,0,0,0,0,0,0,0,0,0 },
+	vector<vector<double>> outputs{ { 1,0,0,0,0,0,0,0,0,0 },
 									{ 0,1,0,0,0,0,0,0,0,0 },
 									{ 0,0,1,0,0,0,0,0,0,0 },
 									{ 0,0,0,1,0,0,0,0,0,0 },
@@ -427,15 +441,18 @@ int main() {
 									{ 0,0,0,0,0,0,1,0,0,0 },
 									{ 0,0,0,0,0,0,0,1,0,0 },
 									{ 0,0,0,0,0,0,0,0,1,0 },
-									{ 0,0,0,0,0,0,0,0,0,1 }};
+									{ 0,0,0,0,0,0,0,0,0,1 } };
 
-	
+
 
 	Matrix normalized_train_data(train_size, input_size);
 	Matrix normalized_test_data(test_size, input_size);
 
 	Matrix train_labels(train_size, output_size);
 	Matrix test_labels(test_size, output_size);
+
+	Matrix shuffled_train_data(train_size, input_size);
+	Matrix shuffled_train_labels(train_size, output_size);
 
 	normalizeData("fashion_mnist_train_vectors.csv", normalized_train_data);
 	normalizeData("fashion_mnist_test_vectors.csv", normalized_test_data);
@@ -451,9 +468,15 @@ int main() {
 
 	double LEARNING_RATE = 0.008;
 
-	for (int i = 0; i < 5; i++) {
+	vector<int> indices(train_size);
+	for (int i = 0; i < train_size; i++) indices[i] = i;
+
+	for (int i = 0; i < 10; i++) {
 		correct = 0;
-											//60000
+		shuffleData(normalized_train_data, train_labels, shuffled_train_data, shuffled_train_labels, indices);
+		normalized_train_data = shuffled_train_data;
+		train_labels = shuffled_train_labels;
+		//60000
 		for (batch_start = 0; batch_start < train_size; batch_start += batch_size) {
 			copy(normalized_train_data.data.begin() + input_size * batch_start,
 				normalized_train_data.data.begin() + input_size * (batch_start + batch_size),
@@ -467,7 +490,7 @@ int main() {
 
 			correct += network.compareOutput(desired_outputs);
 
-			network.backPropagate(batch, desired_outputs, LEARNING_RATE / (1 + (batch_start) / 10000), 0.4);
+			network.backPropagate(batch, desired_outputs, LEARNING_RATE / (1 + (batch_start * i) / 10000), 0.4);
 		}
 
 		std::cout << "Training " << i + 1 << " done, correct comparisons : " << correct << "\n";
@@ -478,20 +501,21 @@ int main() {
 	Matrix testing_output = Matrix(batch_size, output_size);
 
 	correct = 0;
-										//10000
+	//10000
 	for (batch_start = 0; batch_start < test_size; batch_start += batch_size) {
+
 		copy(normalized_test_data.data.begin() + input_size * batch_start,
-			 normalized_test_data.data.begin() + input_size * (batch_start + batch_size),
-			 testing_input.data.begin());
+			normalized_test_data.data.begin() + input_size * (batch_start + batch_size),
+			testing_input.data.begin());
 
 		copy(test_labels.data.begin() + output_size * batch_start,
-			 test_labels.data.begin() + output_size * (batch_start + batch_size),
-			 testing_output.data.begin());
+			test_labels.data.begin() + output_size * (batch_start + batch_size),
+			testing_output.data.begin());
 
 		network.forwardPropagate(testing_input);
 
 		correct += network.compareOutput(testing_output);
 	}
-	std::cout << "Testing done, accuracy: " << static_cast<double>(correct)/test_size << "\n";
+	std::cout << "Testing done, accuracy: " << static_cast<double>(correct) / test_size << "\n";
 	return 0;
 }
